@@ -136,8 +136,6 @@ jobs:
       - name: Prepare release files list
         id: release-files
         run: |
-          #Rename files
-          mv "${{ env.BUILD_DIR }}/classes/application.yaml.template" "${{ env.BUILD_DIR }}/classes/application.yaml"
           # Get files
           FILES=""
           BASE_PATH="${{ github.event.repository.name }}"
