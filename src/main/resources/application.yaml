@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: User Sync Service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:user-sync-group}
+      auto-offset-reset: ${KAFKA_FROM_BEGINNING:earliest}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      isolation-level: read_committed
+    properties:
+      security:
+        protocol: SASL_PLAINTEXT
+      sasl:
+        jaas:
+          config: org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_USERNAME:user}" password="${KAFKA_PASSWORD:password}";
+        mechanism: PLAIN
+    listener:
+      poll-timeout: 100
+
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: ${KEYCLOAK_CLIENT_ID}
+            client-secret: ${KEYCLOAK_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+            scope: openid
+        provider:
+          keycloak:
+            token-uri: ${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+
+  logging:
+    level:
+      org.springframework.kafka: INFO
+      com.example.usersync: DEBUG
+      org.springframework.web.reactive.function.client: DEBUG
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+app:
+  kafka:
+    topic: ${KAFKA_TOPIC:user-changes}
+    client-id: ${KAFKA_CLIENT_ID:user-sync-client}
+
+  keycloak:
+    base-url: ${KEYCLOAK_URL:http://locahost:8080}
+    realm: ${KEYCLOAK_REALM:birunix}
+    admin-client-id: ${KEYCLOAK_CLIENT_ID:user-sync}
+    admin-client-secret: ${KEYCLOAK_CLIENT_SECRET:secret}
+
+  tracked-columns:
+    - COMPANY_ID
+    - USER_ID
+    - NAME
+    - LOGIN
+    - PASSWORD
+
+#management:
+#  endpoints:
+#    web:
+#      exposure:
+#        include: health,info,metrics
+#  endpoint:
+#    health:
+#      show-details: always
+#      show-components: always
