@@ -91,6 +91,7 @@ public class KeycloakService {
             if (locationHeader != null) {
                 String keycloakUserId = locationHeader.substring(locationHeader.lastIndexOf('/') + 1);
                 log.info("User created in Keycloak: userID: {}, login: {}, ID: {}", userData.userId(), userData.login(), keycloakUserId);
+                return;
             }
 
             throw new RuntimeException("Failed to get created user ID from response");
