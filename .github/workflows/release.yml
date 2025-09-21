@@ -1,0 +1,205 @@
+name: Prepare release
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  actions: read
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION.md
+  workflow_dispatch:
+
+env:
+  PROJECT_CODE: 'usersync'
+  # Github Actions scripts
+  SCRIPTS_DIR: ${{ vars.SCRIPTS_DIR || '.github/scripts' }}
+  BUILD_DIR: ${{ vars.BUILD_DIR || 'target' }}
+  # root directory files
+  VERSION_FILE_PATH: ${{ vars.VERSION_FILE_PATH || 'VERSION.md' }}
+
+jobs:
+  # --------------------------------------------------
+  read-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version-number: ${{ steps.read-version.outputs.version-number }}
+      raw-version-number: ${{ steps.read-version.outputs.raw-version-number }}
+      major-version: ${{ steps.read-version.outputs.major-version }}
+      is-prerelease: ${{ steps.read-version.outputs.is-prerelease }}
+      is-patch: ${{ steps.read-version.outputs.is-patch }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            ${{ env.VERSION_FILE_PATH }}
+            ${{ env.SCRIPTS_DIR }}/read_version.py
+
+      - name: Check if VERSION.md exists
+        run: |
+          if [ ! -f "VERSION.md" ]; then
+            echo "Error: VERSION.md file not found"
+            exit 1
+          fi
+
+      - name: Read version from VERSION.md
+        id: read-version
+        run: python ${{ env.SCRIPTS_DIR }}/read_version.py ${{ env.VERSION_FILE_PATH }}
+
+      - name: Print version
+        run: |
+          echo "Version ${{ steps.read-version.outputs.version-number }}"
+          echo "Major version ${{ steps.read-version.outputs.major-version }}"
+          echo "Prerelease ${{ steps.read-version.outputs.is-prerelease }}"
+          echo "Patch ${{ steps.read-version.outputs.is-patch }}"
+
+      - name: Check tag not exists
+        if: github.ref_name == 'main'
+        run: |
+          if gh release view ${{ steps.read-version.outputs.version-number }} &>/dev/null; then
+            echo "Error: version tag ${{ steps.read-version.outputs.version-number }} already exists"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # --------------------------------------------------
+  create-tag-and-release:
+    needs: read-version
+    if: needs.read-version.outputs.is-prerelease == 'false'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.event.repository.name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ github.event.repository.name }}
+          fetch-depth: 0
+
+      # Application build process
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'oracle'
+          cache: 'maven'
+          cache-dependency-path: ${{ github.event.repository.name }}/pom.xml
+
+      - name: Configure Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          echo '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                                      http://maven.apache.org/xsd/settings-1.0.0.xsd">
+                  <servers>
+                    <server>
+                      <id>github</id>
+                      <username>${{ github.actor }}</username>
+                      <password>${{ github.token }}</password>
+                    </server>
+                  </servers>
+                </settings>' > ~/.m2/settings.xml
+
+      - name: Build with Maven
+        run: mvn package -B -f pom.xml
+        working-directory: ${{ github.event.repository.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to GitHub Packages
+        run: mvn deploy -B
+        working-directory: ${{ github.event.repository.name }}
+
+      # Tag and Release creation process
+      - name: Set up Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Create tag
+        run: |
+          git tag "${{ needs.read-version.outputs.version-number }}" -m "Tag created on merge to main"
+          git push origin "${{ needs.read-version.outputs.version-number }}"
+
+      - name: Prepare release files list
+        id: release-files
+        run: |
+          #Rename files
+          mv "${{ env.BUILD_DIR }}/classes/application.yaml.template" "${{ env.BUILD_DIR }}/classes/application.yaml"
+          # Get files
+          FILES=""
+          BASE_PATH="${{ github.event.repository.name }}"
+          for file in \
+            "${{ env.BUILD_DIR }}/${{ env.PROJECT_CODE }}.jar" \
+            "${{ env.BUILD_DIR }}/classes/application.yaml" \
+          do
+            if [ -f "$file" ]; then
+              FILES="${FILES}${BASE_PATH}/$file"$'\n'
+              echo "Found file: $file"
+            else
+              echo "File not found, will be skipped: $file"
+            fi
+          done
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        working-directory: ${{ github.event.repository.name }}
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "${{ needs.read-version.outputs.version-number }}"
+          generate_release_notes: true
+          files: ${{ steps.release-files.outputs.files }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Setup Docker buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Generate Docker metadata
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/usersync
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.read-version.outputs.raw-version-number }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.read-version.outputs.raw-version-number }}
+            type=semver,pattern={{major}},value=${{ needs.read-version.outputs.raw-version-number }}
+
+      # Build and push Docker image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ github.event.repository.name }}
+          file: ${{ github.event.repository.name }}/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.description=Usersync application container
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.read-version.outputs.raw-version-number }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
