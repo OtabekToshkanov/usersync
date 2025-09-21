@@ -121,6 +121,8 @@ jobs:
       - name: Deploy to GitHub Packages
         run: mvn deploy -B
         working-directory: ${{ github.event.repository.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Tag and Release creation process
       - name: Set up Git
@@ -136,13 +138,17 @@ jobs:
       - name: Prepare release files list
         id: release-files
         run: |
+          # Define files array
+          files=(
+            "${{ env.BUILD_DIR }}/${{ env.PROJECT_CODE }}.jar"
+            "${{ env.BUILD_DIR }}/classes/application.yaml"
+          )
+          
           # Get files
           FILES=""
           BASE_PATH="${{ github.event.repository.name }}"
-          for file in \
-            "${{ env.BUILD_DIR }}/${{ env.PROJECT_CODE }}.jar" \
-            "${{ env.BUILD_DIR }}/classes/application.yaml" \
-          do
+          
+          for file in "${files[@]}"; do
             if [ -f "$file" ]; then
               FILES="${FILES}${BASE_PATH}/$file"$'\n'
               echo "Found file: $file"
@@ -150,6 +156,7 @@ jobs:
               echo "File not found, will be skipped: $file"
             fi
           done
+          
           echo "files<<EOF" >> $GITHUB_OUTPUT
           echo "$FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
