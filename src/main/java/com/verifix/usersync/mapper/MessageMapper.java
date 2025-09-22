@@ -48,24 +48,32 @@ public class MessageMapper {
         JsonNode data = payload.after() != null ? payload.after() : payload.before();
 
         return new UserData(
-                decodeBase64Number(data.get("COMPANY_ID")),
-                decodeBase64Number(data.get("USER_ID")),
+                getLongValue(data.get("COMPANY_ID")),
+                getLongValue(data.get("USER_ID")),
                 getTextValue(data.get("NAME")),
                 getTextValue(data.get("LOGIN")),
                 getTextValue(data.get("PASSWORD"))
         );
     }
 
-    /**
-     * Decode a base64 encoded string into a number
-     */
-    private Long decodeBase64Number(JsonNode node) {
+    private Long getLongValue(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
         }
 
         try {
-            byte[] bytes = Base64.getDecoder().decode(node.asText());
+            return Long.parseLong(node.asText());
+        } catch (NumberFormatException e) {
+            return decodeBase64Number(node.asText());
+        }
+    }
+
+    /**
+     * Decode a base64 encoded string into a number
+     */
+    private Long decodeBase64Number(String value) {
+        try {
+            byte[] bytes = Base64.getDecoder().decode(value);
             return new BigInteger(1, bytes).longValue(); // 1 = positive sign
         } catch (Exception e) {
             log.error("Failed to decode base64 number: {}", e.getMessage());
