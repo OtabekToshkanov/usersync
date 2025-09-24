@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -30,6 +29,7 @@ public class KeycloakMapper {
                 true,
                 userData.getFirstName(),
                 userData.getLastName(),
+                userData.email(),
                 prepareCredentials(userData),
                 prepareAttributes(userData)
         );
@@ -38,8 +38,7 @@ public class KeycloakMapper {
     }
 
     private String prepareLogin(UserData userData) {
-        String username = userData.login() == null ? userData.name() + generateRandomSuffix() : userData.login();
-        String transliterated = transliterator.transliterate(username) + "@" + userData.companyId();
+        String transliterated = transliterator.transliterate( userData.login());
 
         // Remove all characters except alphanumeric, @, dash, underscore, and dot
         // Replace spaces with underscores
@@ -76,9 +75,5 @@ public class KeycloakMapper {
         return Map.of("fullName", List.of(userData.name()),
                 "companyId", List.of(userData.companyId().toString()),
                 "userId", List.of(userData.userId().toString()));
-    }
-
-    private String generateRandomSuffix() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 6);
     }
 }

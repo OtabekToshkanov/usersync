@@ -7,7 +7,8 @@ public record UserData(
         @JsonProperty("user_id") Long userId,
         String name,
         String login,
-        String password
+        String password,
+        String email
 ) {
     public String getFirstName() {
         if (name == null || name.trim().isEmpty()) {

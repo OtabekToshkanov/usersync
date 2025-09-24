@@ -52,7 +52,8 @@ public class MessageMapper {
                 getLongValue(data.get("USER_ID")),
                 getTextValue(data.get("NAME")),
                 getTextValue(data.get("LOGIN")),
-                getTextValue(data.get("PASSWORD"))
+                getTextValue(data.get("PASSWORD")),
+                getTextValue(data.get("EMAIL"))
         );
     }
 

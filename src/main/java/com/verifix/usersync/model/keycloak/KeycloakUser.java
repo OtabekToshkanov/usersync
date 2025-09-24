@@ -12,6 +12,7 @@ public record KeycloakUser(
         Boolean enabled,
         String firstName,
         String lastName,
+        String email,
         List<KeycloakCredential> credentials,
         Map<String, List<String>> attributes
 ) {
