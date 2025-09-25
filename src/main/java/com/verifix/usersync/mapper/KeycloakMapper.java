@@ -26,7 +26,7 @@ public class KeycloakMapper {
         return new KeycloakUser(
                 null, // ID will be set by Keycloak
                 prepareLogin(userData),
-                true,
+                "A".equals(userData.state()),
                 userData.getFirstName(),
                 userData.getLastName(),
                 userData.email(),
@@ -38,7 +38,7 @@ public class KeycloakMapper {
     }
 
     private String prepareLogin(UserData userData) {
-        String transliterated = transliterator.transliterate( userData.login());
+        String transliterated = transliterator.transliterate(userData.login());
 
         // Remove all characters except alphanumeric, @, dash, underscore, and dot
         // Replace spaces with underscores

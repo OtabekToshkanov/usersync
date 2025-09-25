@@ -8,7 +8,8 @@ public record UserData(
         String name,
         String login,
         String password,
-        String email
+        String email,
+        String state
 ) {
     public String getFirstName() {
         if (name == null || name.trim().isEmpty()) {

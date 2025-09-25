@@ -53,7 +53,8 @@ public class MessageMapper {
                 getTextValue(data.get("NAME")),
                 getTextValue(data.get("LOGIN")),
                 getTextValue(data.get("PASSWORD")),
-                getTextValue(data.get("EMAIL"))
+                getTextValue(data.get("EMAIL")),
+                getTextValue(data.get("STATE"))
         );
     }
 
