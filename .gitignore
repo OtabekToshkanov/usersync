@@ -34,3 +34,5 @@ build/
 
 .env
 /logs/
+
+.DS_Store
